@@ -90,36 +90,62 @@ function favs(){const l=store.get('koha_fav');app.innerHTML='<h1 class="t">Phim 
 
 /* ---------- Chi tiết + trình phát ---------- */
 let hlsP;const loadHls=()=>hlsP??=new Promise((ok,no)=>{if(window.Hls)return ok();const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+/* Trang thông tin phim: chỉ giới thiệu, chưa hiện trình phát và danh sách tập */
 async function detail(slug){
   app.innerHTML='<div class="msg">Đang tải…</div>';
   try{
     const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
-    const eps=(j.episodes||[]).filter(s=>s.server_data?.length),nm=a=>(a||[]).map(x=>esc(x.name||x)).join(', ')||'—';
+    const eps=(j.episodes||[]).filter(s=>s.server_data&&s.server_data.length);
+    const nm=a=>(a||[]).map(x=>esc(x.name||x)).join(', ')||'—';
     const isFav=()=>store.get('koha_fav').some(x=>x.slug===slug);
     app.innerHTML=`<div class="banner">${imgTag(m,true,'class="hbg" ')}</div><div class="detail"><div class="poster" data-t="${esc(m.name)}">${imgTag(m,false)}</div><div class="info">
       <h1>${esc(m.name)}</h1><div class="o">${esc(m.origin_name||'')}</div>
       <div class="chips">${[m.quality,m.lang,m.year,m.time,m.episode_current].filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div>
       <p><b>Thể loại:</b> ${nm(m.category)}</p><p><b>Quốc gia:</b> ${nm(m.country)}</p><p><b>Đạo diễn:</b> ${nm(m.director)}</p><p><b>Diễn viên:</b> ${nm(m.actor)}</p>
-      <p class="desc">${esc(strip(m.content))}</p><div class="hb"><button class="btn p" onclick="document.getElementById('pw')&&document.getElementById('pw').scrollIntoView({behavior:'smooth',block:'center'})">▶ Xem ngay</button><button class="btn" id="fav"></button></div></div></div>
-      <h2 class="s">Xem phim</h2>${eps.length?`<div class="ctl"><select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select><select id="mo" aria-label="Trình phát"><option value="e">Trình phát nhúng</option><option value="h">HLS (m3u8)</option></select></div><div class="eps" id="ep"></div><div class="pw" id="pw"></div>`:'<div class="msg">Phim này chưa có tập nào để phát.</div>'}`;
+      <p class="desc">${esc(strip(m.content))}</p>
+      <div class="hb">${eps.length?`<a class="btn p" href="#/xem/${esc(slug)}">▶ Xem phim</a>`:'<span class="btn off">Chưa có tập để xem</span>'}<button class="btn" id="fav"></button></div></div></div>`;
     const fb=$('#fav'),paint=()=>fb.textContent=isFav()?'♥ Đã yêu thích':'♡ Yêu thích';paint();
     fb.onclick=()=>{let l=store.get('koha_fav');if(isFav())l=l.filter(x=>x.slug!==slug);else l.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year});store.set('koha_fav',l);paint();toast(isFav()?'Đã thêm vào yêu thích':'Đã xóa khỏi yêu thích')};
     const c0=m.category&&m.category[0]&&m.category[0].slug;
     if(c0)get('/v1/api/the-loai/'+c0).then(r=>{const it=norm(r).items.filter(x=>x.slug!==slug);if(it.length&&document.body.contains(fb))app.insertAdjacentHTML('beforeend',rowHTML('Phim cùng thể loại','#/the-loai/'+c0+'/1',it))}).catch(()=>{});
-    if(!eps.length)return;
+  }catch(e){fail(e)}
+}
+
+/* Trang xem phim: trình phát + danh sách tập */
+async function watch(slug){
+  app.innerHTML='<div class="msg">Đang tải…</div>';
+  try{
+    const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
+    const eps=(j.episodes||[]).filter(s=>s.server_data&&s.server_data.length);
+    if(!eps.length){app.innerHTML=`<div class="msg">Phim này chưa có tập để phát.<br><br><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a></div>`;return}
+    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1></div>
+      <div class="pw" id="pw"></div>
+      <div class="ctl" style="margin-top:12px"><button class="btn" id="pv">‹ Tập trước</button><button class="btn" id="nx">Tập sau ›</button>
+        <select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select>
+        <select id="mo" aria-label="Trình phát"><option value="e">Trình phát nhúng</option><option value="h">HLS (m3u8)</option></select></div>
+      <h2 class="s">Danh sách tập</h2><div class="eps" id="ep"></div>`;
     let si=0,ei=0;
+    const h0=store.get('koha_hist').find(x=>x.slug===slug);
+    if(h0&&h0.episode_current){const k=eps[0].server_data.findIndex(e=>e.name===h0.episode_current);if(k>=0)ei=k}
     const run=async()=>{
-      const e=eps[si].server_data[ei],pw=$('#pw');if(hls){hls.destroy();hls=null}
+      const list=eps[si].server_data,e=list[ei],pw=$('#pw');if(!pw)return;
+      if(hls){hls.destroy();hls=null}
+      $('#wt').textContent=m.name+' · '+e.name;
       document.querySelectorAll('#ep button').forEach((b,i)=>b.classList.toggle('on',i===ei));
+      $('#pv').classList.toggle('off',ei<=0);$('#nx').classList.toggle('off',ei>=list.length-1);
       if($('#mo').value==='h'&&e.link_m3u8){
         pw.innerHTML='<video controls autoplay playsinline></video>';const v=pw.firstChild;
         try{await loadHls();if(Hls.isSupported()){hls=new Hls();hls.loadSource(e.link_m3u8);hls.attachMedia(v)}else v.src=e.link_m3u8}catch{v.src=e.link_m3u8}
       }else pw.innerHTML=e.link_embed?`<iframe src="${esc(e.link_embed)}" allowfullscreen allow="autoplay; fullscreen"></iframe>`:'<div class="msg">Tập này chưa có nguồn phát.</div>';
-      let h=store.get('koha_hist').filter(x=>x.slug!==slug);h.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year,episode_current:e.name});store.set('koha_hist',h.slice(0,12));
+      let h=store.get('koha_hist').filter(x=>x.slug!==slug);
+      h.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year,episode_current:e.name});store.set('koha_hist',h.slice(0,12));
     };
     const lst=()=>{$('#ep').innerHTML=eps[si].server_data.map((e,i)=>`<button data-i="${i}">${esc(e.name)}</button>`).join('');run()};
-    $('#ep').onclick=ev=>{const b=ev.target.closest('button');if(b){ei=+b.dataset.i;run()}};
-    $('#sv').onchange=ev=>{si=+ev.target.value;ei=0;lst()};$('#mo').onchange=run;lst();
+    $('#ep').onclick=ev=>{const b=ev.target.closest('button');if(b){ei=+b.dataset.i;run();window.scrollTo({top:0,behavior:'smooth'})}};
+    $('#pv').onclick=()=>{if(ei>0){ei--;run()}};
+    $('#nx').onclick=()=>{if(ei<eps[si].server_data.length-1){ei++;run()}};
+    $('#sv').onchange=ev=>{si=+ev.target.value;ei=Math.min(ei,eps[si].server_data.length-1);lst()};
+    $('#mo').onchange=run;lst();
   }catch(e){fail(e)}
 }
 
@@ -130,6 +156,7 @@ function route(){
   window.scrollTo(0,0);
   if(kind===''){buildNav('');return home()}
   if(kind==='phim'&&a){buildNav('');return detail(a)}
+  if(kind==='xem'&&a){buildNav('');return watch(a)}
   if(kind==='yeu-thich'){buildNav('fav');return favs()}
   if(kind==='moi'){buildNav('moi');return list('moi','',+a||1)}
   if(kind==='tim-kiem'&&a){buildNav('');return list(kind,a,+b||1)}
