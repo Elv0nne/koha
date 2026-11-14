@@ -92,3 +92,8 @@ footer{text-align:center;color:var(--mute);padding:22px;border-top:1px solid var
  .track .card{flex-basis:124px;width:124px}.grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* trang xem phim */
+.wh{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.wh h1{font-size:clamp(17px,2.6vw,24px)}
+.eps{max-height:260px}
