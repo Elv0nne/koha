@@ -2,49 +2,20 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>KOHA – Điện ảnh trong tầm tay</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0b12">
+<title>KOHA – Xem phim online</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
-<div id="cur" aria-hidden="true"></div>
-<div id="loader" aria-hidden="true"><div class="c t"></div><div class="c b"></div>
- <svg viewBox="0 0 420 130"><defs><linearGradient id="lg"><stop offset="0" stop-color="#7c3aed"/><stop offset=".55" stop-color="#ec4899"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><text x="6" y="108">KOHA</text></svg></div>
-
-<header id="hd"><div class="bar">
- <button class="burger" id="bg" aria-label="Mở menu">☰</button>
- <a href="#" class="logo mag" data-v="home" aria-label="KOHA">KOHA</a>
- <nav id="nav" aria-label="Điều hướng chính">
-  <button data-v="home" class="on">Trang chủ</button>
-  <button data-v="/v1/api/danh-sach/phim-le" data-t="Phim lẻ">Phim lẻ</button>
-  <button data-v="/v1/api/danh-sach/phim-bo" data-t="Phim bộ">Phim bộ</button>
-  <button data-v="/v1/api/danh-sach/hoat-hinh" data-t="Anime & Hoạt hình">Anime</button>
-  <div class="gm"><button aria-haspopup="true">Thể loại ▾</button><div class="dd" id="dd"></div></div>
-  <div class="gm"><button aria-haspopup="true">Quốc gia ▾</button><div class="dd" id="dc"></div></div>
-  <div class="gm"><button aria-haspopup="true">Năm ▾</button><div class="dd" id="dy"></div></div>
-  <button data-v="/danh-sach/phim-moi-cap-nhat-v3" data-t="Mới cập nhật">Mới cập nhật</button>
- </nav>
- <div class="tools">
-  <div class="sb" id="sb"><button id="sbt" aria-label="Tìm kiếm">🔍</button><input id="q" type="search" placeholder="Tìm phim, diễn viên…" aria-label="Tìm kiếm"></div>
-  <button class="btn g sm mag" id="login">Đăng nhập</button>
-  <button class="av" id="mine" aria-label="Danh sách của tôi" title="Danh sách của tôi">K</button>
- </div></div>
- <div class="sug" id="sug" role="listbox"></div>
-</header>
-
+<header><div class="bar">
+  <a class="logo" href="#/">KOHA</a>
+  <nav id="nav" aria-label="Điều hướng"></nav>
+  <form id="sf"><input id="q" type="search" placeholder="Tìm phim…" aria-label="Tìm phim"><button>Tìm</button></form>
+</div></header>
 <main id="app"></main>
-<footer><div><div class="logo" style="font-size:20px;display:inline-block">KOHA</div><p>Điện ảnh trong tầm tay. Dữ liệu từ phimapi.com.</p></div>
- <div><a href="#">Facebook</a><a href="#">YouTube</a><a href="#">Instagram</a><a href="#">TikTok</a></div></footer>
-<div class="modal" id="md" role="dialog" aria-modal="true" aria-label="Chi tiết phim"></div>
-<div class="bn" id="bn"><button data-v="home" class="on"><span>⌂</span>Trang chủ</button><button data-v="/v1/api/danh-sach/phim-le" data-t="Phim lẻ"><span>🎬</span>Phim lẻ</button><button data-v="/v1/api/danh-sach/phim-bo" data-t="Phim bộ"><span>📺</span>Phim bộ</button><button id="bs"><span>🔍</span>Tìm</button><button id="bm"><span>♡</span>Của tôi</button></div>
+<footer>KOHA · Dữ liệu từ phimapi.com</footer>
 <div id="toast" role="status"></div>
-
-<script src="js/images.js"></script>
-<script src="js/player.js"></script>
-<script src="js/app.js"></script>
+<script src="js/app.js" defer></script>
 </body>
 </html>
