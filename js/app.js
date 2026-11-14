@@ -26,7 +26,7 @@ function norm(j){
   const p=d.params?.pagination||d.pagination||{};
   return{items:d.items||[],total:p.totalPages||(p.totalItems&&p.totalItemsPerPage?Math.ceil(p.totalItems/p.totalItemsPerPage):1)};
 }
-const card=m=>`<a class="card" href="#/phim/${esc(m.slug)}"><div class="poster" data-t="${esc(m.name)}">${imgTag(m,false,'loading="lazy" ')}${m.episode_current?`<span class="tag">${esc(m.episode_current)}</span>`:''}</div><h3>${esc(m.name)}</h3><small>${esc([m.origin_name,m.year].filter(Boolean).join(' · '))}</small></a>`;
+const card=m=>{const v=+(m.tmdb&&m.tmdb.vote_average);return `<a class="card" href="#/phim/${esc(m.slug)}"><div class="poster" data-t="${esc(m.name)}">${imgTag(m,false,'loading="lazy" ')}${m.episode_current?`<span class="tag">${esc(m.episode_current)}</span>`:''}${v>0?`<span class="rt">★ ${v.toFixed(1)}</span>`:''}</div><h3>${esc(m.name)}</h3><small>${esc([m.origin_name,m.year].filter(Boolean).join(' · '))}</small></a>`};
 const pager=(base,p,t)=>t<=1?'':`<div class="pager"><a class="btn ${p<=1?'off':''}" href="${base}/${p-1}">Trước</a><span>Trang ${p}/${t}</span><a class="btn ${p>=t?'off':''}" href="${base}/${p+1}">Sau</a></div>`;
 const fail=e=>app.innerHTML=`<div class="msg">Không tải được dữ liệu (${esc(e.message)}).<br>Kiểm tra mạng rồi <a class="btn" href="javascript:route()">thử lại</a></div>`;
 
@@ -37,16 +37,17 @@ const COUNTRIES=[['trung-quoc','Trung Quốc'],['han-quoc','Hàn Quốc'],['nhat
 const YEARS=Array.from({length:17},(_,i)=>[String(2026-i),String(2026-i)]);
 const LABEL=Object.fromEntries([...GENRES,...COUNTRIES,...YEARS,['phim-le','Phim lẻ'],['phim-bo','Phim bộ'],['hoat-hinh','Hoạt hình'],['tv-shows','TV Shows']]);
 function buildNav(cur){
-  const sel=(label,kind,list)=>`<select aria-label="${label}" onchange="this.value&&(location.hash='#/${kind}/'+this.value+'/1')"><option value="">${label}</option>${list.map(([s,n])=>`<option value="${s}" ${cur===kind+'/'+s?'selected':''}>${n}</option>`).join('')}</select>`;
-  $('#nav').innerHTML=TYPES.map(([s,n])=>`<a href="#/${s}${s==='moi'?'/1':'/1'}" class="${cur===s?'on':''}">${n}</a>`).join('')
-    +sel('Thể loại','the-loai',GENRES)+sel('Quốc gia','quoc-gia',COUNTRIES)+sel('Năm','nam',YEARS)
+  const chips=(kind,list)=>list.map(([s,n])=>`<a class="chip ${cur===kind+'/'+s?'on':''}" href="#/${kind}/${s}/1">${n}</a>`).join('');
+  $('#nav').innerHTML=TYPES.map(([s,n])=>`<a href="#/${s}/1" class="${cur===s?'on':''}">${n}</a>`).join('')
+    +`<details class="mm"><summary>Khám phá</summary><div class="panel"><h4>Thể loại</h4><div class="chs">${chips('the-loai',GENRES)}</div><h4>Quốc gia</h4><div class="chs">${chips('quoc-gia',COUNTRIES)}</div><h4>Năm phát hành</h4><div class="chs">${chips('nam',YEARS)}</div></div></details>`
     +`<a href="#/yeu-thich" class="${cur==='fav'?'on':''}">♡ Yêu thích</a>`;
 }
 
 /* ---------- Trang chủ ---------- */
 let hl=[],hi=0;const dcache={};
 const ROWS=[['Hành động','/v1/api/the-loai/hanh-dong','#/the-loai/hanh-dong/1'],['Tình cảm','/v1/api/the-loai/tinh-cam','#/the-loai/tinh-cam/1'],['Hoạt hình','/v1/api/danh-sach/hoat-hinh','#/danh-sach/hoat-hinh/1'],['Phim Hàn','/v1/api/quoc-gia/han-quoc','#/quoc-gia/han-quoc/1'],['Phim bộ','/v1/api/danh-sach/phim-bo','#/danh-sach/phim-bo/1'],['Kinh dị','/v1/api/the-loai/kinh-di','#/the-loai/kinh-di/1']];
-const rowHTML=(t,href,items,path)=>`<section class="row" ${path?`data-p="${path}"`:''}><div class="rh"><h2>${t}</h2><a href="${href}">Xem tất cả</a></div><div class="track">${items?items.slice(0,16).map(card).join(''):''}</div></section>`;
+const SK='<div class="card sk"><div class="poster"></div></div>'.repeat(8);
+const rowHTML=(t,href,items,path)=>`<section class="row" ${path?`data-p="${path}"`:''}><div class="rh"><h2>${t}</h2><a href="${href}">Xem tất cả ›</a></div><div class="rw"><button class="ar l" aria-label="Cuộn trái">‹</button><div class="track">${items?items.slice(0,16).map(card).join(''):SK}</div><button class="ar r" aria-label="Cuộn phải">›</button></div></section>`;
 let io;
 async function home(){
   app.innerHTML='<div class="msg">Đang tải…</div>';
@@ -62,14 +63,14 @@ async function home(){
     io?.disconnect();
     io=new IntersectionObserver(es=>es.forEach(async x=>{
       if(!x.isIntersecting)return;io.unobserve(x.target);
-      try{x.target.querySelector('.track').innerHTML=norm(await get(x.target.dataset.p)).items.slice(0,16).map(card).join('')}catch{}
+      try{x.target.querySelector('.track').innerHTML=norm(await get(x.target.dataset.p)).items.slice(0,16).map(card).join('')}catch{x.target.remove()}
     }),{rootMargin:'300px'});
     document.querySelectorAll('.row[data-p]').forEach(r=>io.observe(r));
   }catch(e){fail(e)}
 }
 async function showHero(i){
   hi=(i+hl.length)%hl.length;const m=hl[hi],h=$('#hero');if(!h||!m)return;
-  h.innerHTML=`${imgTag(m,true,'class="hbg" ')}<div class="hc"><h1>${esc(m.name)}</h1><div class="chips">${[m.quality,m.year,m.episode_current].filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div><p class="desc" id="hd"></p><div class="hb"><a class="btn p" href="#/phim/${esc(m.slug)}">▶ Xem ngay</a><button class="btn" aria-label="Phim trước" onclick="showHero(hi-1)">‹</button><button class="btn" aria-label="Phim sau" onclick="showHero(hi+1)">›</button></div></div>`;
+  h.innerHTML=`${imgTag(m,true,'class="hbg" ')}<div class="hc"><h1>${esc(m.name)}</h1><div class="chips">${[m.quality,m.year,m.episode_current].filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div><p class="desc" id="hd"></p><div class="hb"><a class="btn p" href="#/phim/${esc(m.slug)}">▶ Xem ngay</a><button class="btn" onclick="showHero(hi+1)">Phim khác ${hi+1}/${hl.length} ›</button></div></div>`;
   try{const d=dcache[m.slug]??=(await get('/phim/'+m.slug)).movie;if(hl[hi]===m&&$('#hd'))$('#hd').textContent=strip(d.content).slice(0,220)}catch{}
 }
 
@@ -95,14 +96,16 @@ async function detail(slug){
     const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
     const eps=(j.episodes||[]).filter(s=>s.server_data?.length),nm=a=>(a||[]).map(x=>esc(x.name||x)).join(', ')||'—';
     const isFav=()=>store.get('koha_fav').some(x=>x.slug===slug);
-    app.innerHTML=`<div class="detail"><div class="poster" data-t="${esc(m.name)}">${imgTag(m,false)}</div><div class="info">
+    app.innerHTML=`<div class="banner">${imgTag(m,true,'class="hbg" ')}</div><div class="detail"><div class="poster" data-t="${esc(m.name)}">${imgTag(m,false)}</div><div class="info">
       <h1>${esc(m.name)}</h1><div class="o">${esc(m.origin_name||'')}</div>
       <div class="chips">${[m.quality,m.lang,m.year,m.time,m.episode_current].filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('')}</div>
       <p><b>Thể loại:</b> ${nm(m.category)}</p><p><b>Quốc gia:</b> ${nm(m.country)}</p><p><b>Đạo diễn:</b> ${nm(m.director)}</p><p><b>Diễn viên:</b> ${nm(m.actor)}</p>
-      <p class="desc">${esc(strip(m.content))}</p><button class="btn" id="fav"></button></div></div>
+      <p class="desc">${esc(strip(m.content))}</p><div class="hb"><button class="btn p" onclick="document.getElementById('pw')&&document.getElementById('pw').scrollIntoView({behavior:'smooth',block:'center'})">▶ Xem ngay</button><button class="btn" id="fav"></button></div></div></div>
       <h2 class="s">Xem phim</h2>${eps.length?`<div class="ctl"><select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select><select id="mo" aria-label="Trình phát"><option value="e">Trình phát nhúng</option><option value="h">HLS (m3u8)</option></select></div><div class="eps" id="ep"></div><div class="pw" id="pw"></div>`:'<div class="msg">Phim này chưa có tập nào để phát.</div>'}`;
     const fb=$('#fav'),paint=()=>fb.textContent=isFav()?'♥ Đã yêu thích':'♡ Yêu thích';paint();
     fb.onclick=()=>{let l=store.get('koha_fav');if(isFav())l=l.filter(x=>x.slug!==slug);else l.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year});store.set('koha_fav',l);paint();toast(isFav()?'Đã thêm vào yêu thích':'Đã xóa khỏi yêu thích')};
+    const c0=m.category&&m.category[0]&&m.category[0].slug;
+    if(c0)get('/v1/api/the-loai/'+c0).then(r=>{const it=norm(r).items.filter(x=>x.slug!==slug);if(it.length&&document.body.contains(fb))app.insertAdjacentHTML('beforeend',rowHTML('Phim cùng thể loại','#/the-loai/'+c0+'/1',it))}).catch(()=>{});
     if(!eps.length)return;
     let si=0,ei=0;
     const run=async()=>{
@@ -134,6 +137,11 @@ function route(){
   if(a){buildNav(kind+'/'+a);return list(kind,a,+b||1)}
   location.hash='#/';
 }
+document.addEventListener('click',e=>{
+  const a=e.target.closest('.ar');
+  if(a){const t=a.parentNode.querySelector('.track');t.scrollBy({left:(a.classList.contains('r')?1:-1)*t.clientWidth*.85,behavior:'smooth'})}
+  else if(!e.target.closest('.mm')){const m=document.querySelector('.mm');if(m)m.removeAttribute('open')}
+});
 $('#sf').onsubmit=e=>{e.preventDefault();const q=$('#q').value.trim();if(q)location.hash='#/tim-kiem/'+encodeURIComponent(q)+'/1'};
 addEventListener('hashchange',route);
 route();
