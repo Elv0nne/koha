@@ -111,34 +111,59 @@ async function detail(slug){
   }catch(e){fail(e)}
 }
 
-/* Trang xem phim: trình phát + danh sách tập */
+/* Trang xem phim: trình phát + danh sách tập + gợi ý tập tiếp / thông báo hết phim */
+const ago=t=>{const m=(Date.now()-t)/60000|0;return m<1?'vừa xong':m<60?m+' phút trước':m<1440?(m/60|0)+' giờ trước':(m/1440|0)+' ngày trước'};
+const overlay=n=>`${n?`<div class="nxp" id="nxp" hidden><div class="nh"><span>⏭ Tập tiếp theo</span><button id="nxc" aria-label="Đóng">✕</button></div><div class="ne">${esc(n.name)}</div><button class="btn p" id="nxg">Xem ngay</button></div>`:''}<div class="endc" id="endc" hidden><div class="nh"><span>🎉 Đã hết phim!</span><button id="endx" aria-label="Đóng">✕</button></div><p>Chúc các bạn xem phim vui vẻ ^^</p></div>`;
 async function watch(slug){
   app.innerHTML='<div class="msg">Đang tải…</div>';
   try{
     const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
     const eps=(j.episodes||[]).filter(s=>s.server_data&&s.server_data.length);
     if(!eps.length){app.innerHTML=`<div class="msg">Phim này chưa có tập để phát.<br><br><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a></div>`;return}
-    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1></div>
+    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1><span class="resume" id="rs" hidden></span></div>
       <div class="pw" id="pw"></div>
-      <div class="ctl" style="margin-top:12px"><button class="btn" id="pv">‹ Tập trước</button><button class="btn" id="nx">Tập sau ›</button>
-        <select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select>
-        <select id="mo" aria-label="Trình phát"><option value="e">Trình phát nhúng</option><option value="h">HLS (m3u8)</option></select></div>
+      <div class="tb"><button id="pv">⏮ Tập trước</button><button id="nx">⏭ Tập tiếp</button><button id="dim">💡 Tắt đèn</button><button id="fl"></button></div>
+      <div class="ctl"><select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select>
+        <select id="mo" aria-label="Trình phát"><option value="h">Trình phát HLS (tự chuyển tập)</option><option value="e">Trình phát nhúng</option></select></div>
+      <p class="hint">Gợi ý “Tập tiếp theo”, tự chuyển tập và thông báo hết phim chỉ hoạt động ở chế độ HLS.</p>
       <h2 class="s">Danh sách tập</h2><div class="eps" id="ep"></div>`;
-    let si=0,ei=0;
+    let si=0,ei=0,dismissed=false,et;
     const h0=store.get('koha_hist').find(x=>x.slug===slug);
-    if(h0&&h0.episode_current){const k=eps[0].server_data.findIndex(e=>e.name===h0.episode_current);if(k>=0)ei=k}
+    if(h0&&h0.episode_current){
+      const k=eps[0].server_data.findIndex(e=>e.name===h0.episode_current);if(k>=0)ei=k;
+      const rs=$('#rs');rs.hidden=false;rs.textContent='Bạn vừa xem '+h0.episode_current+(h0.t?' · '+ago(h0.t):'');
+    }
+    const isFav=()=>store.get('koha_fav').some(x=>x.slug===slug),paint=()=>$('#fl').textContent=isFav()?'🔖 Đang theo dõi':'🔖 Theo dõi';paint();
+    $('#fl').onclick=()=>{let l=store.get('koha_fav');if(isFav())l=l.filter(x=>x.slug!==slug);else l.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year});store.set('koha_fav',l);paint();toast(isFav()?'Đã theo dõi phim':'Đã bỏ theo dõi')};
+    $('#dim').onclick=()=>{const on=document.body.classList.toggle('dim');$('#dim').textContent=on?'💡 Bật đèn':'💡 Tắt đèn'};
     const run=async()=>{
       const list=eps[si].server_data,e=list[ei],pw=$('#pw');if(!pw)return;
+      const next=list[ei+1];dismissed=false;clearTimeout(et);
       if(hls){hls.destroy();hls=null}
       $('#wt').textContent=m.name+' · '+e.name;
       document.querySelectorAll('#ep button').forEach((b,i)=>b.classList.toggle('on',i===ei));
-      $('#pv').classList.toggle('off',ei<=0);$('#nx').classList.toggle('off',ei>=list.length-1);
+      $('#pv').classList.toggle('off',ei<=0);$('#nx').classList.toggle('off',!next);
       if($('#mo').value==='h'&&e.link_m3u8){
-        pw.innerHTML='<video controls autoplay playsinline></video>';const v=pw.firstChild;
-        try{await loadHls();if(Hls.isSupported()){hls=new Hls();hls.loadSource(e.link_m3u8);hls.attachMedia(v)}else v.src=e.link_m3u8}catch{v.src=e.link_m3u8}
+        pw.innerHTML=`<video controls autoplay playsinline></video>${overlay(next)}`;
+        const v=pw.firstChild,nxp=$('#nxp'),endc=$('#endc');
+        const go=()=>{ei++;run()};
+        if(nxp){$('#nxc').onclick=()=>{dismissed=true;nxp.hidden=true};$('#nxg').onclick=go}
+        $('#endx').onclick=()=>endc.hidden=true;
+        v.ontimeupdate=()=>{const left=v.duration-v.currentTime;if(!nxp||!(left>=0))return;nxp.hidden=dismissed||left>30};
+        v.onended=()=>{
+          if(next){toast('Đang chuyển sang '+next.name);go()}
+          else{endc.hidden=false;et=setTimeout(()=>{endc.hidden=true},10000)}
+        };
+        try{
+          await loadHls();
+          if(Hls.isSupported()){
+            hls=new Hls();hls.loadSource(e.link_m3u8);hls.attachMedia(v);
+            hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal){toast('Nguồn HLS lỗi, chuyển sang trình phát nhúng');$('#mo').value='e';run()}});
+          }else v.src=e.link_m3u8;
+        }catch{$('#mo').value='e';run();return}
       }else pw.innerHTML=e.link_embed?`<iframe src="${esc(e.link_embed)}" allowfullscreen allow="autoplay; fullscreen"></iframe>`:'<div class="msg">Tập này chưa có nguồn phát.</div>';
       let h=store.get('koha_hist').filter(x=>x.slug!==slug);
-      h.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year,episode_current:e.name});store.set('koha_hist',h.slice(0,12));
+      h.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year,episode_current:e.name,t:Date.now()});store.set('koha_hist',h.slice(0,12));
     };
     const lst=()=>{$('#ep').innerHTML=eps[si].server_data.map((e,i)=>`<button data-i="${i}">${esc(e.name)}</button>`).join('');run()};
     $('#ep').onclick=ev=>{const b=ev.target.closest('button');if(b){ei=+b.dataset.i;run();window.scrollTo({top:0,behavior:'smooth'})}};
@@ -153,7 +178,7 @@ async function watch(slug){
 function route(){
   if(hls){hls.destroy();hls=null}
   const [kind='',a,b]=location.hash.replace(/^#\/?/,'').split('/').filter(Boolean).map(decodeURIComponent);
-  window.scrollTo(0,0);
+  window.scrollTo(0,0);document.body.classList.remove('dim');
   if(kind===''){buildNav('');return home()}
   if(kind==='phim'&&a){buildNav('');return detail(a)}
   if(kind==='xem'&&a){buildNav('');return watch(a)}
