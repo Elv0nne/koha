@@ -111,39 +111,85 @@ async function detail(slug){
   }catch(e){fail(e)}
 }
 
-/* Trang xem phim: trình phát + danh sách tập + gợi ý tập tiếp / thông báo hết phim */
+/* ===== Trang xem phim (bố cục 2 cột: trình phát + tập | thông tin + đề xuất) ===== */
 const ago=t=>{const m=(Date.now()-t)/60000|0;return m<1?'vừa xong':m<60?m+' phút trước':m<1440?(m/60|0)+' giờ trước':(m/1440|0)+' ngày trước'};
+const seenGet=slug=>{try{return JSON.parse(localStorage.getItem('koha_seen_'+slug))||[]}catch{return[]}};
+const seenAdd=(slug,n)=>{const a=seenGet(slug);if(!a.includes(n)){a.push(n);try{localStorage.setItem('koha_seen_'+slug,JSON.stringify(a))}catch{}}};
+const epLabel=n=>{const x=/^t[aậ]p\s*0*(\d+)/i.exec(n||'');return x?x[1].padStart(2,'0'):n};
+const TYPE={series:'TV',single:'Phim lẻ',hoathinh:'Hoạt hình',tvshows:'TV Shows'},STATUS={ongoing:'Đang chiếu',completed:'Hoàn tất',trailer:'Sắp chiếu'};
 const overlay=n=>`${n?`<div class="nxp" id="nxp" hidden><div class="nh"><span>⏭ Tập tiếp theo</span><button id="nxc" aria-label="Đóng">✕</button></div><div class="ne">${esc(n.name)}</div><button class="btn p" id="nxg">Xem ngay</button></div>`:''}<div class="endc" id="endc" hidden><div class="nh"><span>🎉 Đã hết phim!</span><button id="endx" aria-label="Đóng">✕</button></div><p>Chúc các bạn xem phim vui vẻ ^^</p></div>`;
+const RANKS=[['Mới cập nhật','/danh-sach/phim-moi-cap-nhat-v3'],['Phim bộ','/v1/api/danh-sach/phim-bo'],['Phim lẻ','/v1/api/danh-sach/phim-le'],['Hoạt hình','/v1/api/danh-sach/hoat-hinh']];
+async function loadRank(i){
+  const box=$('#rk');if(!box)return;
+  document.querySelectorAll('.rtab button').forEach((b,k)=>b.classList.toggle('on',k===i));
+  box.innerHTML='<div class="msg" style="padding:24px">Đang tải…</div>';
+  try{
+    const {items}=norm(await get(RANKS[i][1]));if(!$('#rk'))return;
+    box.innerHTML=items.slice(0,8).map((x,k)=>`<a class="ri" href="#/phim/${esc(x.slug)}"><b class="${k<3?'top3':''}">${String(k+1).padStart(2,'0')}</b><div class="poster">${imgTag(x,false,'loading="lazy" ')}</div><div><h3>${esc(x.name)}</h3><small>${esc([x.episode_current,x.year].filter(Boolean).join(' · '))}</small></div></a>`).join('');
+  }catch{box.innerHTML=''}
+}
 async function watch(slug){
   app.innerHTML='<div class="msg">Đang tải…</div>';
   try{
     const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
     const eps=(j.episodes||[]).filter(s=>s.server_data&&s.server_data.length);
     if(!eps.length){app.innerHTML=`<div class="msg">Phim này chưa có tập để phát.<br><br><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a></div>`;return}
-    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1></div>
+    const cats=m.category||[],g3=cats.slice(0,3).map(c=>`<a class="gc" href="#/the-loai/${esc(c.slug)}/1">${esc(c.name)}</a>`).join('')+(cats.length>3?`<span class="gc g">+${cats.length-3}</span>`:'');
+    const chips=[m.quality,m.lang].filter(Boolean).map(x=>`<span class="cp">${esc(x)}</span>`).join('');
+    app.innerHTML=`<nav class="bc"><a href="#/">Trang chủ</a> / <a href="#/phim/${esc(slug)}">${esc(m.name)}</a> / <b id="bce"></b></nav>
+    <div class="wlay"><div class="wmain">
       <div class="stage"><div class="rsw"><span class="resume" id="rs" hidden></span></div><div class="pw" id="pw"></div>
-      <div class="tb"><button id="pv">⏮ Tập trước</button><button id="nx">⏭ Tập tiếp</button><button id="dim">💡 Tắt đèn</button><button id="fl"></button></div></div>
-      <div class="ctl"><select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select>
-        <select id="mo" aria-label="Trình phát"><option value="h">Trình phát HLS (tự chuyển tập)</option><option value="e">Trình phát nhúng</option></select></div>
-      <p class="hint">Gợi ý “Tập tiếp theo”, tự chuyển tập và thông báo hết phim chỉ hoạt động ở chế độ HLS.</p>
-      <h2 class="s">Danh sách tập</h2><div class="eps" id="ep"></div>`;
-    let si=0,ei=0,dismissed=false,et;
+        <div class="strip"><div class="sl"><button class="sq" id="pv" title="Tập trước" aria-label="Tập trước">⏮</button><button class="sq" id="nx" title="Tập tiếp" aria-label="Tập tiếp">⏭</button></div>
+          <div class="sm"><button id="fsb" title="Phóng to" aria-label="Phóng to">⛶</button><button id="dim" title="Tắt đèn" aria-label="Tắt đèn">🎞</button><button id="au" class="on" title="Tự chuyển tập" aria-label="Tự chuyển tập">▶</button><button id="gl" title="Danh sách tập" aria-label="Danh sách tập">☰</button><button id="sk" title="Tua 85 giây" aria-label="Tua 85 giây">⏩</button></div>
+          <div class="sr"><button class="sq" id="fl" title="Lưu phim" aria-label="Lưu phim">🔖</button><button id="lk" title="Thích" aria-label="Thích">👍</button></div></div></div>
+      <div class="p2"><div class="srv"><span class="lb">🖥 Chọn máy chủ</span>${eps.map((v,i)=>`<button class="pill" data-s="${i}">${esc(v.server_name)}</button>`).join('')}</div>
+        <div class="par"><span class="dot"></span>Thông số: ${chips}<span class="sp"></span>Trình phát: <button class="pill" data-m="h">HLS</button><button class="pill" data-m="e">Nhúng</button></div>
+        <p class="hint">HLS: có gợi ý tập tiếp theo, tự chuyển tập và thông báo hết phim.</p></div>
+      <div class="epp" id="epp"><div class="eh"><span>EPISODES</span><input id="es" type="search" placeholder="Tìm kiếm tập phim" aria-label="Tìm tập phim"></div><div class="eg" id="ep"></div></div>
+    </div>
+    <aside class="wside"><div class="mi"><div class="mh2"><div class="poster" data-t="">${imgTag(m,false)}</div><div><h3>${esc(m.name)}</h3><div class="bds"><span class="bd">${esc(STATUS[m.status]||m.episode_current||'')}</span><span class="bd g">${esc(TYPE[m.type]||'')}</span></div></div></div>
+      <div class="cur">Tập hiện tại: <b id="cur"></b></div>
+      <div class="r2"><span class="lbl">Thông số luồng phát</span><div class="chs2">${chips}</div></div>
+      <div class="r2"><span class="lbl">Thể loại</span><div class="chs2">${g3||'—'}</div></div>
+      <div class="r2"><span class="lbl">Mô tả</span><p class="d3">${esc(strip(m.content))}</p></div>
+      <div class="act2"><a class="lnk" href="#/phim/${esc(slug)}">ⓘ THÔNG TIN</a><button class="lnk" id="fl2"></button></div></div>
+      <div class="rk"><h2>⭐ Phim nổi bật</h2><div class="rtab">${RANKS.map((r,i)=>`<button data-r="${i}">${r[0]}</button>`).join('')}</div><div id="rk"></div></div></aside></div>`;
+    loadRank(0);
+    document.querySelector('.rtab').onclick=ev=>{const b=ev.target.closest('[data-r]');if(b)loadRank(+b.dataset.r)};
+    let si=0,ei=0,mode='h',auto=true,dismissed=false,et;
     const h0=store.get('koha_hist').find(x=>x.slug===slug);
     if(h0&&h0.episode_current){
       const k=eps[0].server_data.findIndex(e=>e.name===h0.episode_current);if(k>=0)ei=k;
       const rs=$('#rs');rs.hidden=false;rs.textContent='Bạn vừa xem '+h0.episode_current+(h0.t?' · '+ago(h0.t):'');
     }
-    const isFav=()=>store.get('koha_fav').some(x=>x.slug===slug),paint=()=>$('#fl').textContent=isFav()?'🔖 Đang theo dõi':'🔖 Theo dõi';paint();
-    $('#fl').onclick=()=>{let l=store.get('koha_fav');if(isFav())l=l.filter(x=>x.slug!==slug);else l.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year});store.set('koha_fav',l);paint();toast(isFav()?'Đã theo dõi phim':'Đã bỏ theo dõi')};
-    $('#dim').onclick=()=>{const on=document.body.classList.toggle('dim');$('#dim').textContent=on?'💡 Bật đèn':'💡 Tắt đèn'};
+    const isFav=()=>store.get('koha_fav').some(x=>x.slug===slug);
+    const paintFav=()=>{const f=isFav();$('#fl').classList.toggle('on',f);$('#fl2').textContent=f?'🔖 ĐANG LƯU':'🔖 LƯU'};
+    const toggleFav=()=>{let l=store.get('koha_fav');if(isFav())l=l.filter(x=>x.slug!==slug);else l.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year});store.set('koha_fav',l);paintFav();toast(isFav()?'Đã lưu phim':'Đã bỏ lưu')};
+    paintFav();$('#fl').onclick=toggleFav;$('#fl2').onclick=toggleFav;
+    const liked=()=>store.get('koha_like').includes(slug);$('#lk').classList.toggle('on',liked());
+    $('#lk').onclick=()=>{let l=store.get('koha_like');l=liked()?l.filter(x=>x!==slug):[...l,slug];store.set('koha_like',l);$('#lk').classList.toggle('on',liked())};
+    $('#dim').onclick=()=>{$('#dim').classList.toggle('on',document.body.classList.toggle('dim'))};
+    $('#fsb').onclick=()=>{const pw=$('#pw');document.fullscreenElement?document.exitFullscreen():pw.requestFullscreen&&pw.requestFullscreen()};
+    $('#au').onclick=()=>{auto=!auto;$('#au').classList.toggle('on',auto);toast(auto?'Bật tự chuyển tập':'Tắt tự chuyển tập')};
+    $('#gl').onclick=()=>$('#epp').scrollIntoView({behavior:'smooth',block:'start'});
+    $('#sk').onclick=()=>{const v=document.querySelector('#pw video');if(v)v.currentTime+=85;else toast('Chỉ dùng được ở chế độ HLS')};
+    const paintPills=()=>{
+      document.querySelectorAll('.srv .pill').forEach(b=>b.classList.toggle('on',+b.dataset.s===si));
+      document.querySelectorAll('.par .pill').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+    };
+    const paintEps=()=>{
+      const q=($('#es').value||'').trim().toLowerCase(),seen=seenGet(slug);
+      $('#ep').innerHTML=eps[si].server_data.map((e,i)=>({e,i})).filter(({e})=>!q||e.name.toLowerCase().includes(q)||epLabel(e.name).includes(q))
+        .map(({e,i})=>`<button data-i="${i}" class="${i===ei?'on':seen.includes(e.name)?'seen':''}" title="${esc(e.name)}">${esc(epLabel(e.name))}</button>`).join('')||'<span class="hint">Không có tập phù hợp</span>';
+    };
     const run=async()=>{
       const list=eps[si].server_data,e=list[ei],pw=$('#pw');if(!pw)return;
       const next=list[ei+1];dismissed=false;clearTimeout(et);
       if(hls){hls.destroy();hls=null}
-      $('#wt').textContent=m.name+' · '+e.name;
-      document.querySelectorAll('#ep button').forEach((b,i)=>b.classList.toggle('on',i===ei));
+      $('#bce').textContent=e.name;$('#cur').textContent=e.name;
       $('#pv').classList.toggle('off',ei<=0);$('#nx').classList.toggle('off',!next);
-      if($('#mo').value==='h'&&e.link_m3u8){
+      seenAdd(slug,e.name);paintEps();paintPills();
+      if(mode==='h'&&e.link_m3u8){
         pw.innerHTML=`<video controls autoplay playsinline></video>${overlay(next)}`;
         const v=pw.firstChild,nxp=$('#nxp'),endc=$('#endc');
         const go=()=>{ei++;run()};
@@ -151,26 +197,27 @@ async function watch(slug){
         $('#endx').onclick=()=>endc.hidden=true;
         v.ontimeupdate=()=>{const left=v.duration-v.currentTime;if(!nxp||!(left>=0))return;nxp.hidden=dismissed||left>30};
         v.onended=()=>{
-          if(next){toast('Đang chuyển sang '+next.name);go()}
+          if(next){if(auto){toast('Đang chuyển sang '+next.name);go()}}
           else{endc.hidden=false;et=setTimeout(()=>{endc.hidden=true},10000)}
         };
         try{
           await loadHls();
           if(Hls.isSupported()){
             hls=new Hls();hls.loadSource(e.link_m3u8);hls.attachMedia(v);
-            hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal){toast('Nguồn HLS lỗi, chuyển sang trình phát nhúng');$('#mo').value='e';run()}});
+            hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal){toast('Nguồn HLS lỗi, chuyển sang trình phát nhúng');mode='e';run()}});
           }else v.src=e.link_m3u8;
-        }catch{$('#mo').value='e';run();return}
+        }catch{mode='e';run();return}
       }else pw.innerHTML=e.link_embed?`<iframe src="${esc(e.link_embed)}" allowfullscreen allow="autoplay; fullscreen"></iframe>`:'<div class="msg">Tập này chưa có nguồn phát.</div>';
       let h=store.get('koha_hist').filter(x=>x.slug!==slug);
       h.unshift({slug,name:m.name,origin_name:m.origin_name,poster_url:m.poster_url,thumb_url:m.thumb_url,year:m.year,episode_current:e.name,t:Date.now()});store.set('koha_hist',h.slice(0,12));
     };
-    const lst=()=>{$('#ep').innerHTML=eps[si].server_data.map((e,i)=>`<button data-i="${i}">${esc(e.name)}</button>`).join('');run()};
     $('#ep').onclick=ev=>{const b=ev.target.closest('button');if(b){ei=+b.dataset.i;run();window.scrollTo({top:0,behavior:'smooth'})}};
+    $('#es').oninput=paintEps;
     $('#pv').onclick=()=>{if(ei>0){ei--;run()}};
     $('#nx').onclick=()=>{if(ei<eps[si].server_data.length-1){ei++;run()}};
-    $('#sv').onchange=ev=>{si=+ev.target.value;ei=Math.min(ei,eps[si].server_data.length-1);lst()};
-    $('#mo').onchange=run;lst();
+    document.querySelector('.srv').onclick=ev=>{const b=ev.target.closest('[data-s]');if(!b)return;si=+b.dataset.s;ei=Math.min(ei,eps[si].server_data.length-1);run()};
+    document.querySelector('.par').onclick=ev=>{const b=ev.target.closest('[data-m]');if(!b)return;mode=b.dataset.m;run()};
+    run();
   }catch(e){fail(e)}
 }
 
@@ -194,7 +241,7 @@ document.addEventListener('click',e=>{
   if(a){const t=a.parentNode.querySelector('.track');t.scrollBy({left:(a.classList.contains('r')?1:-1)*t.clientWidth*.85,behavior:'smooth'})}
   else if(!e.target.closest('.mm')){const m=document.querySelector('.mm');if(m)m.removeAttribute('open')}
 });
-const lightOn=()=>{if(document.body.classList.contains('dim')){document.body.classList.remove('dim');const d=$('#dim');if(d)d.textContent='💡 Tắt đèn'}};
+const lightOn=()=>{if(document.body.classList.contains('dim')){document.body.classList.remove('dim');const d=$('#dim');if(d)d.classList.remove('on')}};
 document.body.addEventListener('click',e=>{if(e.target===document.body)lightOn()});
 addEventListener('keydown',e=>{if(e.key==='Escape')lightOn()});
 $('#sf').onsubmit=e=>{e.preventDefault();const q=$('#q').value.trim();if(q)location.hash='#/tim-kiem/'+encodeURIComponent(q)+'/1'};
