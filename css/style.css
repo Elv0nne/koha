@@ -97,3 +97,21 @@ footer{text-align:center;color:var(--mute);padding:22px;border-top:1px solid var
 .wh{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .wh h1{font-size:clamp(17px,2.6vw,24px)}
 .eps{max-height:260px}
+
+/* gợi ý tập tiếp, hết phim, thanh công cụ, tắt đèn */
+.pw{position:relative}
+.nxp,.endc{position:absolute;z-index:3;background:rgba(24,22,35,.96);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.nxp{top:12px;right:12px;width:min(230px,70%)}
+.endc{left:12px;bottom:64px;max-width:min(320px,80%)}
+.nh{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--mute);font-size:13px}
+.nh button{background:none;border:0;color:var(--mute);cursor:pointer;font-size:16px}
+.ne{color:var(--acc);font-weight:700;margin:6px 0 10px}
+.endc p{margin:6px 0 0}
+.tb{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;margin:10px 0}
+.tb button{background:none;border:0;color:var(--mute);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:14px}
+.tb button:hover{color:var(--text);background:var(--panel)}
+.resume{margin-left:auto;background:#f97316;color:#fff;font-size:12.5px;padding:3px 10px;border-radius:6px}
+.hint{color:var(--mute);font-size:12.5px;margin:4px 0 0}
+body.dim::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:5}
+body.dim .pw{z-index:6}
+body.dim header{opacity:.15}
