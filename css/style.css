@@ -112,6 +112,11 @@ footer{text-align:center;color:var(--mute);padding:22px;border-top:1px solid var
 .tb button:hover{color:var(--text);background:var(--panel)}
 .resume{margin-left:auto;background:#f97316;color:#fff;font-size:12.5px;padding:3px 10px;border-radius:6px}
 .hint{color:var(--mute);font-size:12.5px;margin:4px 0 0}
-body.dim::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:5}
-body.dim .pw{z-index:6}
-body.dim header{opacity:.15}
+.stage{position:relative;z-index:6;border-radius:12px}
+.rsw{display:flex;justify-content:flex-end}
+.rsw .resume{margin:0 0 6px}
+body::before{content:"";position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5;transition:opacity .35s}
+body.dim::before{opacity:.97;pointer-events:auto;cursor:pointer}
+body.dim header{z-index:1}
+body.dim .stage{background:#0f1418;padding:0 0 6px}
+body.dim .rsw{padding:0}
