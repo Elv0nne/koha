@@ -120,9 +120,9 @@ async function watch(slug){
     const j=await get('/phim/'+encodeURIComponent(slug)),m=j.movie;if(!m)throw Error('Không có dữ liệu phim');
     const eps=(j.episodes||[]).filter(s=>s.server_data&&s.server_data.length);
     if(!eps.length){app.innerHTML=`<div class="msg">Phim này chưa có tập để phát.<br><br><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a></div>`;return}
-    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1><span class="resume" id="rs" hidden></span></div>
-      <div class="pw" id="pw"></div>
-      <div class="tb"><button id="pv">⏮ Tập trước</button><button id="nx">⏭ Tập tiếp</button><button id="dim">💡 Tắt đèn</button><button id="fl"></button></div>
+    app.innerHTML=`<div class="wh"><a class="btn" href="#/phim/${esc(slug)}">← Thông tin phim</a><h1 id="wt"></h1></div>
+      <div class="stage"><div class="rsw"><span class="resume" id="rs" hidden></span></div><div class="pw" id="pw"></div>
+      <div class="tb"><button id="pv">⏮ Tập trước</button><button id="nx">⏭ Tập tiếp</button><button id="dim">💡 Tắt đèn</button><button id="fl"></button></div></div>
       <div class="ctl"><select id="sv" aria-label="Server">${eps.map((s,i)=>`<option value="${i}">${esc(s.server_name)}</option>`).join('')}</select>
         <select id="mo" aria-label="Trình phát"><option value="h">Trình phát HLS (tự chuyển tập)</option><option value="e">Trình phát nhúng</option></select></div>
       <p class="hint">Gợi ý “Tập tiếp theo”, tự chuyển tập và thông báo hết phim chỉ hoạt động ở chế độ HLS.</p>
@@ -194,6 +194,9 @@ document.addEventListener('click',e=>{
   if(a){const t=a.parentNode.querySelector('.track');t.scrollBy({left:(a.classList.contains('r')?1:-1)*t.clientWidth*.85,behavior:'smooth'})}
   else if(!e.target.closest('.mm')){const m=document.querySelector('.mm');if(m)m.removeAttribute('open')}
 });
+const lightOn=()=>{if(document.body.classList.contains('dim')){document.body.classList.remove('dim');const d=$('#dim');if(d)d.textContent='💡 Tắt đèn'}};
+document.body.addEventListener('click',e=>{if(e.target===document.body)lightOn()});
+addEventListener('keydown',e=>{if(e.key==='Escape')lightOn()});
 $('#sf').onsubmit=e=>{e.preventDefault();const q=$('#q').value.trim();if(q)location.hash='#/tim-kiem/'+encodeURIComponent(q)+'/1'};
 addEventListener('hashchange',route);
 route();
